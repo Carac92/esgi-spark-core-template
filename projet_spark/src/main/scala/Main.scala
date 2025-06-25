@@ -16,6 +16,95 @@ object Main {
       .csv(path)
   }
 
+  private def encodeCategoricalVariables(df: DataFrame): DataFrame = {
+    df
+      // Parental_Involvement: Low=0, Medium=1, High=2
+      .withColumn("Parental_Involvement",
+        when(col("Parental_Involvement") === "Low", 0)
+          .when(col("Parental_Involvement") === "Medium", 1)
+          .when(col("Parental_Involvement") === "High", 2)
+          .otherwise(col("Parental_Involvement").cast("integer")))
+
+      // Access_to_Resources: Low=0, Medium=1, High=2
+      .withColumn("Access_to_Resources",
+        when(col("Access_to_Resources") === "Low", 0)
+          .when(col("Access_to_Resources") === "Medium", 1)
+          .when(col("Access_to_Resources") === "High", 2)
+          .otherwise(col("Access_to_Resources").cast("integer")))
+
+      // Extracurricular_Activities: No=0, Yes=1
+      .withColumn("Extracurricular_Activities",
+        when(col("Extracurricular_Activities") === "No", 0)
+          .when(col("Extracurricular_Activities") === "Yes", 1)
+          .otherwise(col("Extracurricular_Activities").cast("integer")))
+
+      // Motivation_Level: Low=0, Medium=1, High=2
+      .withColumn("Motivation_Level",
+        when(col("Motivation_Level") === "Low", 0)
+          .when(col("Motivation_Level") === "Medium", 1)
+          .when(col("Motivation_Level") === "High", 2)
+          .otherwise(col("Motivation_Level").cast("integer")))
+
+      // Internet_Access: No=0, Yes=1
+      .withColumn("Internet_Access",
+        when(col("Internet_Access") === "No", 0)
+          .when(col("Internet_Access") === "Yes", 1)
+          .otherwise(col("Internet_Access").cast("integer")))
+
+      // Family_Income: Low=0, Medium=1, High=2
+      .withColumn("Family_Income",
+        when(col("Family_Income") === "Low", 0)
+          .when(col("Family_Income") === "Medium", 1)
+          .when(col("Family_Income") === "High", 2)
+          .otherwise(col("Family_Income").cast("integer")))
+
+      // Teacher_Quality: Low=0, Medium=1, High=2
+      .withColumn("Teacher_Quality",
+        when(col("Teacher_Quality") === "Low", 0)
+          .when(col("Teacher_Quality") === "Medium", 1)
+          .when(col("Teacher_Quality") === "High", 2)
+          .otherwise(col("Teacher_Quality").cast("integer")))
+
+      // School_Type: Public=0, Private=1
+      .withColumn("School_Type",
+        when(col("School_Type") === "Public", 0)
+          .when(col("School_Type") === "Private", 1)
+          .otherwise(col("School_Type").cast("integer")))
+
+      // Peer_Influence: Negative=0, Neutral=1, Positive=2
+      .withColumn("Peer_Influence",
+        when(col("Peer_Influence") === "Negative", 0)
+          .when(col("Peer_Influence") === "Neutral", 1)
+          .when(col("Peer_Influence") === "Positive", 2)
+          .otherwise(col("Peer_Influence").cast("integer")))
+
+      // Learning_Disabilities: No=0, Yes=1
+      .withColumn("Learning_Disabilities",
+        when(col("Learning_Disabilities") === "No", 0)
+          .when(col("Learning_Disabilities") === "Yes", 1)
+          .otherwise(col("Learning_Disabilities").cast("integer")))
+
+      // Parental_Education_Level: High School=0, College=1, Postgraduate=2
+      .withColumn("Parental_Education_Level",
+        when(col("Parental_Education_Level") === "High School", 0)
+          .when(col("Parental_Education_Level") === "College", 1)
+          .when(col("Parental_Education_Level") === "Postgraduate", 2)
+          .otherwise(col("Parental_Education_Level").cast("integer")))
+
+      // Distance_from_Home: Near=0, Moderate=1, Far=2
+      .withColumn("Distance_from_Home",
+        when(col("Distance_from_Home") === "Near", 0)
+          .when(col("Distance_from_Home") === "Moderate", 1)
+          .when(col("Distance_from_Home") === "Far", 2)
+          .otherwise(col("Distance_from_Home").cast("integer")))
+
+      // Gender: Male=0, Female=1
+      .withColumn("Gender",
+        when(col("Gender") === "Male", 0)
+          .when(col("Gender") === "Female", 1)
+          .otherwise(col("Gender").cast("integer")))
+  }
+
   def main(args: Array[String]): Unit = {
     // Default relative path inside the repo
     val defaultCsv = "data/StudentPerformanceFactors.csv"
@@ -34,17 +123,18 @@ object Main {
 
       df.printSchema()
       println(s"Total number of entries: ${df.count()}")
-      df.show(20)
+      //df.show(20, false)
       df.describe().show()
 
       // Missing values count per column
       val missingValues = df.select(
         df.columns.map(c =>
-          sum(when(col(c).isNull || col(c) === "" || col(c) === "NULL", 1).otherwise(0)).alias(c)
+          sum(when(col(c).isNull || col(c) === "", 1).otherwise(0)).alias(c)
         ): _*
       )
 
       missingValues.show(false)
+
 
       val missingCounts = missingValues.collect()(0).getValuesMap[Long](df.columns)
       val colsWithMissing = missingCounts.filter { case (_, count) => count > 0 }.keys.toSeq
@@ -71,6 +161,20 @@ object Main {
       cleanedDf.dropDuplicates()
 
       println(s"Nombre de lignes après nettoyage : ${cleanedDf.count()}")
+
+      // Avant l'encodage
+      println("Données avant encodage :")
+      cleanedDf.select("Parental_Involvement", "School_Type", "Gender").show(5)
+
+      // Encode categorical variables
+      val encodedDf = encodeCategoricalVariables(cleanedDf)
+
+      // Après l'encodage
+      println("Données après encodage :")
+      encodedDf.select("Parental_Involvement", "School_Type", "Gender").show(5)
+
+      println("Données après encodage des variables catégorielles :")
+      encodedDf.describe().show()
 
       //Outliers
 
