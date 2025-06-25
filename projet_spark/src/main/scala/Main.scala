@@ -327,13 +327,20 @@ object Main {
       //On enleve les variables peu pertinente (les categorielles ici)
       val finalDf = cleanedDf2.select(numericColsWithExamScore.map(col): _*)
 
-      val outputPath = "../data/output_finalDf" // chemin relatif dans le projet
+      val filePath = "../data/clean_df.parquet" // chemin relatif dans le projet
       finalDf.coalesce(1) // Pour un seul fichier Parquet
         .write
         .mode("overwrite")
-        .parquet(outputPath)
+        .parquet(filePath)
+      println(s"✅ DataFrame final écrit dans '$filePath' en format Parquet.")
 
-      println(s"✅ DataFrame final écrit dans '$outputPath' en format Parquet.")
+      val filePathWithCategoricals = "../data/clean_df_with_categoricals.parquet" // chemin relatif dans le projet
+      cleanedDf2.coalesce(1) // Pour un seul fichier Parquet
+        .write
+        .mode("overwrite")
+        .parquet(filePathWithCategoricals)
+
+      println(s"✅ DataFrame final écrit dans '$filePathWithCategoricals' en format Parquet.")
     } finally {
       //coales permet de changer le nombre de partitions pour un dataframe
       // Par exemple, coalesce(1) pour réduire à une seule partition
