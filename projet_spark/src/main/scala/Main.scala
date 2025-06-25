@@ -1,12 +1,13 @@
 package org.esgi
 
+import org.apache.hadoop.security.UserGroupInformation
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.hadoop.shaded.org.eclipse.jetty.websocket.common.frames
-import org.apache.spark.sql.{DataFrame, SparkSession, Column}
+import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 
 object Main {
-
+  UserGroupInformation.setLoginUser(UserGroupInformation.createRemoteUser("hduser"))
   private def readCsv(spark: SparkSession, path: String): DataFrame = {
     spark.read
       .option("header", "true") // Use first row as header
