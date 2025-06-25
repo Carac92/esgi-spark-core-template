@@ -143,7 +143,7 @@ object Main {
       //Valeurs manquantes
       println("Colonnes avec valeurs manquantes : " + colsWithMissing.mkString(", "))
 
-      val cleanedDf = if (colsWithMissing.nonEmpty) {
+      var cleanedDf = if (colsWithMissing.nonEmpty) {
         val condition = colsWithMissing.map(c => col(c).isNotNull && !col(c).equalTo("")).reduce(_ && _)
         df.filter(condition)
       } else df
@@ -162,19 +162,104 @@ object Main {
 
       println(s"Nombre de lignes après nettoyage : ${cleanedDf.count()}")
 
+      // Analyse de corrélation pour variables qualitatives (avant encodage)
+      println("\nAnalyse des associations entre variables qualitatives (Chi-carré et V de Cramér) :")
+
+      val qualitativeCols = Seq(
+        "Parental_Involvement", "Access_to_Resources", "Extracurricular_Activities",
+        "Motivation_Level", "Internet_Access", "Family_Income", "Teacher_Quality",
+        "School_Type", "Peer_Influence", "Learning_Disabilities",
+        "Parental_Education_Level", "Distance_from_Home", "Gender"
+      )
+
+      // Fonction pour calculer le V de Cramér (mesure d'association pour variables catégorielles)
+      def cramersV(df: DataFrame, col1: String, col2: String): Double = {
+        val contingencyTable = df.groupBy(col1, col2).count()
+        val n = df.count().toDouble
+
+        // Calcul du chi-carré
+        val observed = contingencyTable.collect()
+        val totalByCol1 = df.groupBy(col1).count().collect().map(row => (row.getString(0), row.getLong(1))).toMap
+        val totalByCol2 = df.groupBy(col2).count().collect().map(row => (row.getString(0), row.getLong(1))).toMap
+
+        var chiSquare = 0.0
+        observed.foreach { row =>
+          val val1 = row.getString(0)
+          val val2 = row.getString(1)
+          val observedCount = row.getLong(2).toDouble
+          val expectedCount = (totalByCol1(val1) * totalByCol2(val2)) / n
+
+          if (expectedCount > 0) {
+            chiSquare += math.pow(observedCount - expectedCount, 2) / expectedCount
+          }
+        }
+
+        // Calcul du V de Cramér
+        val distinctCol1 = df.select(col1).distinct().count()
+        val distinctCol2 = df.select(col2).distinct().count()
+        val minDim = math.min(distinctCol1 - 1, distinctCol2 - 1)
+
+        if (minDim > 0) math.sqrt(chiSquare / (n * minDim)) else 0.0
+      }
+
+      // Calcul des associations entre variables qualitatives
+      for {
+        i <- qualitativeCols.indices
+        j <- i + 1 until qualitativeCols.length
+      } {
+        val col1 = qualitativeCols(i)
+        val col2 = qualitativeCols(j)
+
+        try {
+          val cramersVValue = cramersV(cleanedDf, col1, col2)
+          println(f"$col1%-25s <-> $col2%-25s = $cramersVValue%.4f")
+        } catch {
+          case e: Exception =>
+            println(f"$col1%-25s <-> $col2%-25s = Erreur de calcul")
+        }
+      }
+
+      // Association entre variables qualitatives et Exam_Score (ANOVA)
+      println("\n🔗 Association variables qualitatives vs Exam_Score (effet sur la performance) :")
+
+      qualitativeCols.foreach { catCol =>
+        try {
+          val grouped = cleanedDf.groupBy(catCol)
+            .agg(
+              avg("Exam_Score").alias("mean_score"),
+              stddev("Exam_Score").alias("std_score"),
+              count("Exam_Score").alias("count")
+            )
+            .orderBy(catCol)
+
+          println(s"\n📋 Impact de $catCol sur Exam_Score :")
+          grouped.show(false)
+
+          // Calcul simple de l'étendue des moyennes pour mesurer l'effet
+          val scores = grouped.select("mean_score").collect().map(_.getDouble(0))
+          if (scores.nonEmpty) {
+            val range = scores.max - scores.min
+            println(f"   Étendue des moyennes: $range%.2f points")
+          }
+        } catch {
+          case e: Exception =>
+            println(s"Erreur lors de l'analyse de $catCol: ${e.getMessage}")
+        }
+      }
+
       // Avant l'encodage
       println("Données avant encodage :")
       cleanedDf.select("Parental_Involvement", "School_Type", "Gender").show(5)
 
       // Encode categorical variables
-      val encodedDf = encodeCategoricalVariables(cleanedDf)
+      cleanedDf = encodeCategoricalVariables(cleanedDf)
 
       // Après l'encodage
       println("Données après encodage :")
-      encodedDf.select("Parental_Involvement", "School_Type", "Gender").show(5)
+      cleanedDf.select("Parental_Involvement", "School_Type", "Gender").show(5)
 
       println("Données après encodage des variables catégorielles :")
-      encodedDf.describe().show()
+      cleanedDf.describe().show()
 
       //Outliers
 
@@ -227,7 +312,7 @@ object Main {
       }
 
 
-    //correlation des variables numeriques:
+      //correlation des variables numeriques:
 
       println("\n📈 Matrice de corrélation (Pearson) :")
 
@@ -242,8 +327,6 @@ object Main {
         val corrValue = cleanedDf2.stat.corr(col1, col2)  // Pearson par défaut
         println(f"$col1%-20s <-> $col2%-20s = $corrValue%.4f")
       }
-
-
 
       // Optional Parquet write
       maybeOut.foreach { outPath =>
