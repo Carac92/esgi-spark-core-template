@@ -76,11 +76,11 @@ object Main {
 
       val numericCols = Seq(
         "Hours_Studied", "Attendance", "Sleep_Hours", "Previous_Scores",
-        "Tutoring_Sessions", "Physical_Activity", "Exam_Score"
+        "Tutoring_Sessions", "Physical_Activity"
       )
 
       numericCols.foreach { colName =>
-        val quantiles = cleanedDf.stat.approxQuantile(colName, Array(0.25, 0.75), 0.0)
+        val quantiles = cleanedDf.stat.approxQuantile(colName, Array(0.05, 0.95), 0.0)
         if (quantiles.length == 2) {
           val Q1 = quantiles(0)
           val Q3 = quantiles(1)
@@ -100,7 +100,7 @@ object Main {
         }
       }
 
-      val cleanedDf2 = numericCols.foldLeft(cleanedDf) { (tempDf, colName) =>
+      var cleanedDf2 = numericCols.foldLeft(cleanedDf) { (tempDf, colName) =>
         val Array(q1, q3) = tempDf.stat.approxQuantile(colName, Array(0.25, 0.75), 0.0)
         val iqr = q3 - q1
         val lower = q1 - 1.5 * iqr
@@ -108,16 +108,22 @@ object Main {
         tempDf.filter(col(colName) >= lower && col(colName) <= upper)
       }
 
+      //Remove score not between 0 and 100
+      cleanedDf2 = cleanedDf2.filter(col("Exam_Score").between(0, 100))
       cleanedDf2.show()
+
 
       val categoricalCols = cleanedDf2.columns.diff(numericCols)
       categoricalCols.foreach { colName =>
         println(s"\n🔹 Répartition des valeurs pour la colonne '$colName' :")
         cleanedDf2.groupBy(col(colName))
           .count()
-          .orderBy(desc("count")) // tri décroissant par fréquence
+          .orderBy(desc("count"))
           .show(100, truncate = false)
       }
+
+
+
 
 
       // Optional Parquet write
