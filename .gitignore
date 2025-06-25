@@ -220,3 +220,5 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/scala,metals,jetbrains,visualstudiocode,macos,linux,windows
+
+data/
