@@ -7,7 +7,7 @@ libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-client" % "3.3.4"
 )
 
-fork := true
+//fork:= true
 
 lazy val root = (project in file("."))
   .settings(
