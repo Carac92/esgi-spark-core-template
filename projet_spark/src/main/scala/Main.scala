@@ -105,6 +105,37 @@ object Main {
           .otherwise(col("Gender").cast("integer")))
   }
 
+  // Fonction pour calculer le V de Cramér (mesure d'association pour variables catégorielles)
+  private def cramersV(df: DataFrame, col1: String, col2: String): Double = {
+    val contingencyTable = df.groupBy(col1, col2).count()
+    val n = df.count().toDouble
+
+    // Calcul du chi-carré
+    val observed = contingencyTable.collect()
+    val totalByCol1 = df.groupBy(col1).count().collect().map(row => (row.getString(0), row.getLong(1))).toMap
+    val totalByCol2 = df.groupBy(col2).count().collect().map(row => (row.getString(0), row.getLong(1))).toMap
+
+    var chiSquare = 0.0
+    observed.foreach { row =>
+      val val1 = row.getString(0)
+      val val2 = row.getString(1)
+      val observedCount = row.getLong(2).toDouble
+      val expectedCount = (totalByCol1(val1) * totalByCol2(val2)) / n
+
+      if (expectedCount > 0) {
+        chiSquare += math.pow(observedCount - expectedCount, 2) / expectedCount
+      }
+    }
+
+    // Calcul du V de Cramér
+    val distinctCol1 = df.select(col1).distinct().count()
+    val distinctCol2 = df.select(col2).distinct().count()
+    val minDim = math.min(distinctCol1 - 1, distinctCol2 - 1)
+
+    if (minDim > 0) math.sqrt(chiSquare / (n * minDim)) else 0.0
+  }
+
+
   def main(args: Array[String]): Unit = {
     // Default relative path inside the repo
     val defaultCsv = "data/StudentPerformanceFactors.csv"
@@ -139,8 +170,6 @@ object Main {
       val missingCounts = missingValues.collect()(0).getValuesMap[Long](df.columns)
       val colsWithMissing = missingCounts.filter { case (_, count) => count > 0 }.keys.toSeq
 
-
-      //Valeurs manquantes
       println("Colonnes avec valeurs manquantes : " + colsWithMissing.mkString(", "))
 
       var cleanedDf = if (colsWithMissing.nonEmpty) {
@@ -151,16 +180,18 @@ object Main {
       println(s"Nombre de lignes avant nettoyage : ${df.count()}")
       println(s"Nombre de lignes après nettoyage : ${cleanedDf.count()}")
 
-      // Maintenant tu peux continuer avec cleanedDf
 
       cleanedDf.describe().show()
-
 
       //Valeurs dupliquées
       println(s"Nombre de lignes avant nettoyage : ${cleanedDf.count()}")
       cleanedDf.dropDuplicates()
 
       println(s"Nombre de lignes après nettoyage : ${cleanedDf.count()}")
+
+      //Remove score not between 0 and 100
+      cleanedDf = cleanedDf.filter(col("Exam_Score").between(0, 100))
+      cleanedDf.show()
 
       // Analyse de corrélation pour variables qualitatives (avant encodage)
       println("\nAnalyse des associations entre variables qualitatives (Chi-carré et V de Cramér) :")
@@ -171,36 +202,6 @@ object Main {
         "School_Type", "Peer_Influence", "Learning_Disabilities",
         "Parental_Education_Level", "Distance_from_Home", "Gender"
       )
-
-      // Fonction pour calculer le V de Cramér (mesure d'association pour variables catégorielles)
-      def cramersV(df: DataFrame, col1: String, col2: String): Double = {
-        val contingencyTable = df.groupBy(col1, col2).count()
-        val n = df.count().toDouble
-
-        // Calcul du chi-carré
-        val observed = contingencyTable.collect()
-        val totalByCol1 = df.groupBy(col1).count().collect().map(row => (row.getString(0), row.getLong(1))).toMap
-        val totalByCol2 = df.groupBy(col2).count().collect().map(row => (row.getString(0), row.getLong(1))).toMap
-
-        var chiSquare = 0.0
-        observed.foreach { row =>
-          val val1 = row.getString(0)
-          val val2 = row.getString(1)
-          val observedCount = row.getLong(2).toDouble
-          val expectedCount = (totalByCol1(val1) * totalByCol2(val2)) / n
-
-          if (expectedCount > 0) {
-            chiSquare += math.pow(observedCount - expectedCount, 2) / expectedCount
-          }
-        }
-
-        // Calcul du V de Cramér
-        val distinctCol1 = df.select(col1).distinct().count()
-        val distinctCol2 = df.select(col2).distinct().count()
-        val minDim = math.min(distinctCol1 - 1, distinctCol2 - 1)
-
-        if (minDim > 0) math.sqrt(chiSquare / (n * minDim)) else 0.0
-      }
 
       // Calcul des associations entre variables qualitatives
       for {
@@ -297,11 +298,6 @@ object Main {
         tempDf.filter(col(colName) >= lower && col(colName) <= upper)
       }
 
-      //Remove score not between 0 and 100
-      cleanedDf2 = cleanedDf2.filter(col("Exam_Score").between(0, 100))
-      cleanedDf2.show()
-
-
       val categoricalCols = cleanedDf2.columns.diff(numericCols)
       categoricalCols.foreach { colName =>
         println(s"\n🔹 Répartition des valeurs pour la colonne '$colName' :")
@@ -328,11 +324,16 @@ object Main {
         println(f"$col1%-20s <-> $col2%-20s = $corrValue%.4f")
       }
 
-      // Optional Parquet write
-      maybeOut.foreach { outPath =>
-        df.write.mode("overwrite").parquet(outPath)
-        println(s"DataFrame written to $outPath in Parquet format.")
-      }
+      //On enleve les variables peu pertinente (les categorielles ici)
+      val finalDf = cleanedDf2.select(numericColsWithExamScore.map(col): _*)
+
+      val outputPath = "../data/output_finalDf" // chemin relatif dans le projet
+      finalDf.coalesce(1) // Pour un seul fichier Parquet
+        .write
+        .mode("overwrite")
+        .parquet(outputPath)
+
+      println(s"✅ DataFrame final écrit dans '$outputPath' en format Parquet.")
     } finally {
       //coales permet de changer le nombre de partitions pour un dataframe
       // Par exemple, coalesce(1) pour réduire à une seule partition
