@@ -227,6 +227,21 @@ object Main {
       }
 
 
+    //correlation des variables numeriques:
+
+      println("\n📈 Matrice de corrélation (Pearson) :")
+
+      val numericColsWithExamScore = numericCols :+ "Exam_Score"
+
+      for {
+        i <- numericColsWithExamScore.indices
+        j <- i + 1 until numericColsWithExamScore.length
+      } {
+        val col1 = numericColsWithExamScore(i)
+        val col2 = numericColsWithExamScore(j)
+        val corrValue = cleanedDf2.stat.corr(col1, col2)  // Pearson par défaut
+        println(f"$col1%-20s <-> $col2%-20s = $corrValue%.4f")
+      }
 
 
 
