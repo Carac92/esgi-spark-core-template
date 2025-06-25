@@ -327,14 +327,14 @@ object Main {
       //On enleve les variables peu pertinente (les categorielles ici)
       val finalDf = cleanedDf2.select(numericColsWithExamScore.map(col): _*)
 
-      val filePath = "../data/clean_df.parquet" // chemin relatif dans le projet
+      val filePath = "../data/clean_df" // chemin relatif dans le projet
       finalDf.coalesce(1) // Pour un seul fichier Parquet
         .write
         .mode("overwrite")
         .parquet(filePath)
       println(s"✅ DataFrame final écrit dans '$filePath' en format Parquet.")
 
-      val filePathWithCategoricals = "../data/clean_df_with_categoricals.parquet" // chemin relatif dans le projet
+      val filePathWithCategoricals = "../data/clean_df_with_categoricals" // chemin relatif dans le projet
       cleanedDf2.coalesce(1) // Pour un seul fichier Parquet
         .write
         .mode("overwrite")
